@@ -1,0 +1,54 @@
+<html>
+<head>
+<title>iGrill</title>
+<style>
+.temp {
+  font-family: Sans-Serif;
+  width: 50;
+  height: 50;
+  border: red solid 2px;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 50px;
+}
+</style>
+</head>
+<body>
+<p id="temps"></p>
+<p id="timestamp"></p>
+
+<script>
+var temps_paragraph = document.getElementById("temps");
+var timestamp_paragraph = document.getElementById("timestamp");
+var temp_elements = [];
+for (var i = 0; i < 4; i++) {
+  var temp_element = document.createElement("p");
+  temp_element.classList.add("temp")
+  temp_element.innerHTML = "temp " + i;
+  temp_elements[i] = temp_element;
+  temps_paragraph.appendChild(temp_element);
+}
+
+function fetchData() {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      var jsonObj = JSON.parse(this.responseText);
+      if (0 == Object.keys(jsonObj).length) {
+        console.log("No sensor data available.")
+        return;
+      }
+      timestamp_paragraph.innerHTML = jsonObj.time;
+      for (var i in jsonObj.temperature) {
+        temp_elements[i].innerHTML = jsonObj.temperature[i] + "&deg;";
+      }
+    }
+  };
+  xhttp.open("GET", "/sensor_data", true);
+  xhttp.send()
+}
+setInterval(fetchData, 1000);
+</script>
+
+</body>
+</html>
