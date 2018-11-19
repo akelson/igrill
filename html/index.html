@@ -1,54 +1,329 @@
 <html>
 <head>
-<title>iGrill</title>
+<title>Grill Probe Extender</title>
 <style>
-.temp {
+body {
   font-family: Sans-Serif;
-  width: 50;
-  height: 50;
-  border: red solid 2px;
-  border-radius: 50%;
+  padding: 0;
+  margin: 0;
+}
+html {
+  height: 100%;
+}
+body {
+    min-height: 100%;
+}
+#header {
+  background: rgb(200, 200, 200);
+  padding: 5px;
+  display: block;
+}
+#footer {
+  position: fixed;
+  width: 100%;
+  bottom: 0;
+  left: 0;
+  background: rgb(200, 200, 200);
+  padding: 5px;
+}
+#body-div {
+  padding: 10px;
+}
+.sensor_table {
+  display: table;
+  width: 100%;
+  margin: auto;
+  border: 1px solid;
+  border-spacing: 0px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  padding-left: 2%;
+  padding-right: 2%;
+  border-radius: 5px;
+  max-width: 1024px;
+}
+.probe_info {
+  margin: auto;
+}
+td {
   text-align: center;
-  line-height: 50px;
+  vertical-align: center;
+  padding: 10px;
+}
+.table-header {
+  font-size: larger;
+}
+.desc {
+  width: 50%;
+  padding-left: 10%;
+  border-top: .5px solid;
+}
+.temp {
+  font-size: larger;
+  font-weight: bold;
+  padding-right: 10%;
+  border-top: .5px solid;
+}
+#connection_manager {
+  display: block;
+  margin: auto;
+  text-align: center;
+}
+.scan_device {
+  border: .5px solid;
+  border-radius: 5px;
+  margin: auto;
+  margin-bottom: 10px;
+  text-align: center;
+  padding: 10px;
+}
+.scan_device > div {
+  padding: 10px;
+}
+#time {
+  margin: auto;
+  font-size: smaller;
+  text-align: center;
+  padding: 10px;
+  padding-top: 5px;
+}
+.disconnect {
+  margin: auto;
+  text-align: center;
+  padding-top: 5px;
+  padding-bottom: 0px;
+}
+.modal {
+    display: flex;
+    display: none;
+    align-items: center;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    background-color: rgba(0, 0, 0, .6);
+}
+.modal_dialog {
+    margin: auto;
+    padding: 10px;
+    background-color: white;
+}
+.modal_dialog > button {
+    display: block;
+    margin: auto;
 }
 </style>
-</head>
-<body>
-<p id="temps"></p>
-<p id="timestamp"></p>
 
+<body>
+  <div id="header">Grill Probe Extender</div>
+  <div id="body-div">
+    <div id="connection_manager">
+        <div id="scan_results">
+        </div>
+        <div >
+            <button onclick="startScan()">Scan</button>
+        </div>
+    </div>
+    <div id="footer">
+        <a href="#" onclick="showAbout()">About</a>
+    </div>
+  </div>
+</body>
+
+<div id="about" class="modal">
+    <div class="modal_dialog">
+        <p style="font-weight: bold">Grill Probe Extender Web Client</p>
+        <p>Version 0.1</p>
+        <p><a href="https://github.com/akelson/igrill">https://github.com/akelson/igrill</a></p>
+        <button onclick="hideAbout()">Dismiss</button>
+    </div>
+</div>
 <script>
-var temps_paragraph = document.getElementById("temps");
-var timestamp_paragraph = document.getElementById("timestamp");
-var temp_elements = [];
-for (var i = 0; i < 4; i++) {
-  var temp_element = document.createElement("p");
-  temp_element.classList.add("temp")
-  temp_element.innerHTML = "temp " + i;
-  temp_elements[i] = temp_element;
-  temps_paragraph.appendChild(temp_element);
+var host="http://anthill:5000"
+var connected = false;
+
+function SensorTable(device_name) {
+  this.element = document.createElement("table");
+  this.element.classList.add("sensor_table");
+  this.element.style.display = "table";
+
+  // Create table header
+  var tr = document.createElement("tr");
+  var td = document.createElement("td");
+  td.classList.add("table_header");
+  td.colSpan = 2;
+  tr.appendChild(td);
+
+  // Create device name div in header
+  var div = document.createElement("div");
+  div.innerHTML = device_name;
+  td.appendChild(div)
+
+  // Create sensor data timestamp in header
+  div = document.createElement("div");
+  div.innerHTML = "--:--";
+  this.timestamp_element = div;
+  td.appendChild(div);
+
+  this.element.appendChild(tr);
+
+  // Create sensor info elements
+  this.temp_elements = [];
+  for (var i = 0; i < 4; i++) {
+    tr = document.createElement("tr");
+    tr.classList.add("probe_info");
+
+    td = document.createElement("td");
+    td.classList.add("desc");
+    td.innerHTML = "probe " + (i + 1);
+    tr.appendChild(td);
+
+    td = document.createElement("td");
+    td.classList.add("temp");
+    td.innerHTML = "--&deg;";
+    tr.appendChild(td);
+    this.temp_elements.push(td);
+
+    this.element.appendChild(tr);
+  } // end for
+
+  // Create disconnnect button
+  tr = document.createElement("tr");
+  td = document.createElement("td");
+  td.colSpan = 2;
+  var button = document.createElement("button");
+  button.classList.add("disconnect");
+  button.innerHTML = "Disconnect";
+  td.appendChild(button);
+  tr.appendChild(td);
+  this.element.appendChild(tr);
+
+  document.body.appendChild(this.element);
+
+  var that = this;
+
+  this.updateSensorData = function() {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        var jsonObj = JSON.parse(this.responseText);
+        if (0 == Object.keys(jsonObj).length) {
+          console.log("No sensor data available.")
+          return;
+        }
+
+        // yyy-mm-dd hh:mm:ss.ssssss
+        var time = jsonObj.time.split(" ")[1];
+        var hour = time.split(":")[0];
+        var min = time.split(":")[1];
+        that.timestamp_element.innerHTML = hour + ":" + min;
+        
+        // Temperature data is an associative array with keys 1..4. 
+        for (var probe_id in jsonObj.temperature) {
+          var i = probe_id - 1;
+          var temp = jsonObj.temperature[probe_id];
+          if (63536 == temp) {
+            temp = "--";
+          }
+          that.temp_elements[i].innerHTML = temp + "&deg;";
+        }
+      }
+    };
+    xhttp.open("GET", host + "/sensor_data", true);
+    xhttp.send()
+  }
+
+  this.interval_id = setInterval(this.updateSensorData, 1000)
+} // end SensorTable
+
+function deviceConnnected() {
+  connected = true;
 }
 
-function fetchData() {
+function startScan() {
+    console.log("Scan started.")
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        // TODO(ACK): Check the returned status.
+        getScanResult();
+      }
+    }
+    xhttp.open("GET", host + "/scan", true);
+    xhttp.send()
+}
+
+var scan_results = document.getElementById("scan_results");
+
+function createScanDevice(name, addr) {
+  var scan_device = document.createElement("div");
+  scan_device.classList.add("scan_device");
+
+  var scan_device_name = document.createElement("div");
+  scan_device_name.innerHTML = name + " - " + addr;
+  scan_device.appendChild(scan_device_name);
+
+  var button = document.createElement("button");
+  button.innerHTML = "Connect";
+  button.onclick = function () {
+    connect(addr);
+  }
+  scan_device.appendChild(button);
+
+  scan_results.appendChild(scan_device);
+}
+
+function getScanResult() {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
       var jsonObj = JSON.parse(this.responseText);
-      if (0 == Object.keys(jsonObj).length) {
-        console.log("No sensor data available.")
-        return;
-      }
-      timestamp_paragraph.innerHTML = jsonObj.time;
-      for (var i in jsonObj.temperature) {
-        temp_elements[i].innerHTML = jsonObj.temperature[i] + "&deg;";
+      if ("running" == jsonObj.status) {
+        console.log("Scan running.")
+        // Try again.
+        setTimeout(getScanResult, 1000);
+      } else {
+        console.log("Scan complete.")
+        var devices = jsonObj.devices;
+        devices.forEach(function (device, i) {
+          var addr = device.addr;
+          var scan_data = device.scan_data;
+          scan_data.forEach(function (scan_item, i) {
+            if ("iGrill" == scan_item[2].substring(0, 6)) {
+              createScanDevice(scan_item[2], addr);
+            }
+          })
+        })
       }
     }
-  };
-  xhttp.open("GET", "/sensor_data", true);
+  }
+  xhttp.open("GET", host + "/scan_result", true);
   xhttp.send()
 }
-setInterval(fetchData, 1000);
-</script>
 
+function connect(addr) {
+  document.getElementById("connection_manager").style.display = "none";
+  var sensor_table = new SensorTable("foo");
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      console.log("Connected to " + addr + ".")
+    }
+  }
+  xhttp.open("GET", host + "/connect/" + addr, true);
+  xhttp.send()
+}
+
+var about_dialog = document.getElementById("about");
+function showAbout() {
+    about_dialog.style.display = "flex";
+}
+function hideAbout() {
+    about_dialog.style.display = "none";
+}
+</script>
 </body>
 </html>
