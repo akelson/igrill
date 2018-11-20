@@ -17,7 +17,7 @@ class Server(object):
             self.scan_proc = Popen(
                 ["sudo", "/usr/bin/python", "scanner.py"],
                 stdout=PIPE, stderr=PIPE)
-            self.scan_data = '{"status":"runing"}'
+            self.scan_data = '{"status":"running"}'
         return "ok"
 
     def scan_result(self):
