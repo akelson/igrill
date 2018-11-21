@@ -33,7 +33,7 @@ Clone the repo with git or download with wget.
 
 Install required Python packages.
 sudo apt install libglib2.0-dev
-pip install -r requirements.txt
+sudo pip install -r requirements.txt
 
 
 
