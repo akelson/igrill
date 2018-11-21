@@ -35,6 +35,12 @@ Install required Python packages.
 sudo apt install libglib2.0-dev
 sudo pip install -r requirements.txt
 
+Configure service
+
+sudo systemctl link /home/pi/igrill/grillserver.service
+sudo systemctl start grillserver.service
+sudo systemctl enable grillserver.service
+
 
 
 
