@@ -1,5 +1,7 @@
 <html>
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Grill Probe Extender</title>
 <style>
 body {
@@ -11,7 +13,7 @@ html {
   height: 100%;
 }
 body {
-    min-height: 100%;
+  min-height: 100%;
 }
 #header {
   background: rgb(200, 200, 200);
@@ -26,8 +28,11 @@ body {
   background: rgb(200, 200, 200);
   padding: 5px;
 }
-#body-div {
+#body_div {
   padding: 10px;
+}
+#status {
+  display: none;
 }
 .sensor_table {
   display: table;
@@ -87,12 +92,6 @@ td {
   padding: 10px;
   padding-top: 5px;
 }
-.disconnect {
-  margin: auto;
-  text-align: center;
-  padding-top: 5px;
-  padding-bottom: 0px;
-}
 .modal {
     display: flex;
     display: none;
@@ -119,7 +118,8 @@ td {
 
 <body>
   <div id="header">Grill Probe Extender</div>
-  <div id="body-div">
+  <div id="status_div"></div>
+  <div id="body_div">
     <div id="connection_manager">
         <div id="scan_results">
         </div>
@@ -142,10 +142,12 @@ td {
     </div>
 </div>
 <script>
-var host="http://anthill:5000"
-var connected = false;
+var connection_manager = document.getElementById("connection_manager");
 
-function SensorTable(device_name) {
+function SensorTable(device_addr, device_name) {
+  // Hide the connection manager
+  connection_manager.style.display = "none";
+
   this.element = document.createElement("table");
   this.element.classList.add("sensor_table");
   this.element.style.display = "table";
@@ -159,11 +161,13 @@ function SensorTable(device_name) {
 
   // Create device name div in header
   var div = document.createElement("div");
-  div.innerHTML = device_name;
+  var simple_addr = device_addr.substr(0, 2) + device_addr.substr(3, 2)
+  div.innerHTML = device_name + " - " + simple_addr.toUpperCase();
   td.appendChild(div)
 
   // Create sensor data timestamp in header
   div = document.createElement("div");
+  div.classList.add("time");
   div.innerHTML = "--:--";
   this.timestamp_element = div;
   td.appendChild(div);
@@ -195,15 +199,21 @@ function SensorTable(device_name) {
   td = document.createElement("td");
   td.colSpan = 2;
   var button = document.createElement("button");
-  button.classList.add("disconnect");
   button.innerHTML = "Disconnect";
+
+  var that = this;
+  button.onclick = function () {
+    clearInterval(that.interval_id);
+    that.element.parentNode.removeChild(that.element);
+    disconnect();
+    delete that;
+  };
+
   td.appendChild(button);
   tr.appendChild(td);
   this.element.appendChild(tr);
 
-  document.body.appendChild(this.element);
-
-  var that = this;
+  document.getElementById("body_div").appendChild(this.element);
 
   this.updateSensorData = function() {
     var xhttp = new XMLHttpRequest();
@@ -232,28 +242,25 @@ function SensorTable(device_name) {
         }
       }
     };
-    xhttp.open("GET", host + "/sensor_data", true);
+    xhttp.open("GET", "/sensor_data", true);
     xhttp.send()
   }
 
   this.interval_id = setInterval(this.updateSensorData, 1000)
 } // end SensorTable
 
-function deviceConnnected() {
-  connected = true;
-}
-
 function startScan() {
-    console.log("Scan started.")
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function() {
-      if (this.readyState == 4 && this.status == 200) {
-        // TODO(ACK): Check the returned status.
-        getScanResult();
-      }
+  setStatus("Scanning...")
+  console.log("Scan started.")
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      // TODO(ACK): Check the returned status.
+      getScanResult();
     }
-    xhttp.open("GET", host + "/scan", true);
-    xhttp.send()
+  }
+  xhttp.open("GET", "/scan", true);
+  xhttp.send()
 }
 
 var scan_results = document.getElementById("scan_results");
@@ -286,6 +293,7 @@ function getScanResult() {
         // Try again.
         setTimeout(getScanResult, 1000);
       } else {
+        hideStatus();
         console.log("Scan complete.")
         var devices = jsonObj.devices;
         devices.forEach(function (device, i) {
@@ -300,20 +308,50 @@ function getScanResult() {
       }
     }
   }
-  xhttp.open("GET", host + "/scan_result", true);
+  xhttp.open("GET", "/scan_result", true);
   xhttp.send()
 }
 
+function displayDevices() {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      var jsonObj = JSON.parse(this.responseText);
+      for (var i = 0; i < jsonObj.length; i++) {
+        var device = jsonObj[i];
+        new SensorTable(device.addr, device.name);
+      }
+    }
+  }
+  xhttp.open("GET", "/devices", true);
+  xhttp.send();
+}
+
 function connect(addr) {
-  document.getElementById("connection_manager").style.display = "none";
-  var sensor_table = new SensorTable("foo");
+  setStatus("Connecting...")
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
       console.log("Connected to " + addr + ".")
+      hideStatus();
+      displayDevices();
     }
   }
-  xhttp.open("GET", host + "/connect/" + addr, true);
+  xhttp.open("GET", "/connect/" + addr, true);
+  xhttp.send()
+}
+
+function disconnect() {
+  // Show the connection manager
+  connection_manager.style.display = "block";
+
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      console.log("Disconnnected.")
+    }
+  }
+  xhttp.open("GET", "/disconnect", true);
   xhttp.send()
 }
 
@@ -321,9 +359,23 @@ var about_dialog = document.getElementById("about");
 function showAbout() {
     about_dialog.style.display = "flex";
 }
+
 function hideAbout() {
     about_dialog.style.display = "none";
 }
+
+var status_div = document.getElementById("status_div");
+function setStatus(msg) {
+  status_div.style.display = "block";
+  status_div.innerHTML = msg;
+}
+
+function hideStatus() {
+  status_div.style.display = "none";
+}
+
+// Display connected devices.
+displayDevices();
 </script>
 </body>
 </html>

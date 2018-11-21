@@ -1,34 +1,61 @@
 from flask import Flask
-import json
+from flask import jsonify
 import datetime
 from subprocess import Popen, PIPE
 from igrill import IGrillV2Peripheral
-
-ADDRESS = 'D4:81:CA:20:4E:8E'
+import json
 
 class Server(object):
     def __init__(self):
         self.periph = None
         self.scan_proc = None
-        self.scan_data = '{"status":"not_started"}'
+        self.scan_ret = {"status":"not_started"}
+        self.device_prefrences = {}
 
     def scan(self):
         if self.scan_proc == None:
             self.scan_proc = Popen(
                 ["sudo", "/usr/bin/python", "scanner.py"],
                 stdout=PIPE, stderr=PIPE)
-            self.scan_data = '{"status":"running"}'
+            self.scan_ret = {"status":"running"}
         return "ok"
 
+    def devices(self):
+        if self.periph:
+            addr = self.periph.addr
+            name = self.device_prefrences[addr]["name"]
+            return jsonify([{"name" : name, "addr" : addr}])
+        else:
+            return jsonify([])
+        
     def scan_result(self):
         if self.scan_proc and None != self.scan_proc.poll():
-            self.scan_data, err = self.scan_proc.communicate()
+            scan_ret, err = self.scan_proc.communicate()
+            self.scan_ret = json.loads(scan_ret)
+
+            devices = {}
+            for device in self.scan_ret["devices"]:
+                for scan_item in device["scan_data"]:
+                    if "Short Local Name" == scan_item[1]:
+                        addr = device["addr"]
+                        name = scan_item[2]
+                        devices[addr] = name
+
+            for (adddr, name) in devices.items():
+                if not addr in self.device_prefrences:
+                    self.device_prefrences[addr] = {"name" : name}
+                        
             print err
             self.scan_proc = None
-        return self.scan_data
+        return jsonify(self.scan_ret)
 
-    def connect(self):
-        self.periph = IGrillV2Peripheral(ADDRESS)
+    def connect(self, addr):
+        self.periph = IGrillV2Peripheral(addr)
+        return "ok"
+
+    def disconnect(self):
+        self.periph.disconnect()
+        self.periph = None
         return "ok"
 
     def sensor_data(self):
@@ -38,10 +65,9 @@ class Server(object):
                 'temperature': self.periph.read_temperature(),
                 'battery': self.periph.read_battery(),
             }
-            return json.dumps(sensor_data)
+            return jsonify(sensor_data)
         else:
-            #return "{}"
-            return '{"temperature":[1,2,3,4]}'
+            return jsonify({})
 
 if __name__ == "__main__":
     server = Server()
@@ -62,9 +88,17 @@ if __name__ == "__main__":
     def scan_result():
         return server.scan_result()
 
-    @app.route('/connect')
-    def connect():
-        return server.connect()
+    @app.route('/devices')
+    def devices():
+        return server.devices()
+
+    @app.route('/connect/<addr>')
+    def connect(addr):
+        return server.connect(addr)
+
+    @app.route('/disconnect')
+    def disconnect():
+        return server.disconnect()
 
     @app.route('/sensor_data')
     def sensor_data():
