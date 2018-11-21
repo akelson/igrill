@@ -21,7 +21,21 @@ default user: pi
 
 default pass: rasberry
 
-Optionally install git (takes a long time). Otherwise download the repo with wget.
+Optionally install git (takes a long time).
 
 sudo apt install git
+
+Install pip.
+
+sudo apt install pip
+
+Clone the repo with git or download with wget.
+
+Install required Python packages.
+sudo apt install libglib2.0-dev
+pip install -r requirements.txt
+
+
+
+
 
