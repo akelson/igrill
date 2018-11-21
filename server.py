@@ -1,6 +1,7 @@
 from flask import Flask
 from flask import jsonify
 import datetime
+import time
 from subprocess import Popen, PIPE
 from igrill import IGrillV2Peripheral
 import json
@@ -11,6 +12,8 @@ class Server(object):
         self.scan_proc = None
         self.scan_ret = {"status":"not_started"}
         self.device_prefrences = {}
+        self.last_read_time = None
+        self.last_sensor_data = {}
 
     def scan(self):
         if self.scan_proc == None:
@@ -23,7 +26,10 @@ class Server(object):
     def devices(self):
         if self.periph:
             addr = self.periph.addr
-            name = self.device_prefrences[addr]["name"]
+            if addr in self.device_prefrences:
+                name = self.device_prefrences[addr]["name"]
+            else:
+                name = "Unknown Device"
             return jsonify([{"name" : name, "addr" : addr}])
         else:
             return jsonify([])
@@ -54,20 +60,30 @@ class Server(object):
         return "ok"
 
     def disconnect(self):
-        self.periph.disconnect()
-        self.periph = None
+        if self.periph:
+            # There seems to be a race condition where calling disconnect to soon
+            # after reading characteristics causes an error.
+            time.sleep(5);
+            self.periph.disconnect()
+            self.periph = None
+            self.last_sensor_data = {}
         return "ok"
 
     def sensor_data(self):
-        if self.periph:
-            sensor_data = {
+        now = datetime.datetime.now()
+        if None == self.last_read_time:
+            self.last_read_time = now
+        min_delta = datetime.timedelta(seconds=1)
+        delta = now - self.last_read_time
+
+        if self.periph and delta > min_delta:
+            self.last_read_time = now 
+            self.last_sensor_data = {
                 'time' : str(datetime.datetime.now()),
                 'temperature': self.periph.read_temperature(),
-                'battery': self.periph.read_battery(),
-            }
-            return jsonify(sensor_data)
-        else:
-            return jsonify({})
+                'battery': self.periph.read_battery()}
+
+        return jsonify(self.last_sensor_data)
 
 if __name__ == "__main__":
     server = Server()
