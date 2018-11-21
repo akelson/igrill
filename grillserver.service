@@ -7,7 +7,7 @@ StartLimitIntervalSec=0
 Type=simple
 Restart=always
 RestartSec=1
-User=akelson
+User=pi
 WorkingDirectory=/home/pi/igrill
 ExecStart=/usr/bin/python /home/pi/igrill/server.py
 
