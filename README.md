@@ -5,20 +5,23 @@ temperatures can be monitored when your phone is not within Bluetooth range.
 
 ##Installation notes for headless Raspberry Pi Zero W
 
-1. Obtain a copy of Rasbian Stretch Lite. Don't extract it.
+Obtain a copy of Rasbian Stretch Lite. Don't extract it.
 
 https://www.raspberrypi.org/downloads/raspbian/
 
-2. Write the image to an SD card.
+Write the image to an SD card with Etcher.
 
-3. Configure the Pi to connect to a wireless network by adding a wpa_supplicant.conf to boot partition.
+Configure the Pi to connect to a wireless network by adding a wpa_supplicant.conf to boot partition.
 
-4. Configure the Pi to start ssh by adding empty ssh.txt to boot partion.
+Configure the Pi to start ssh by adding empty ssh.txt to boot partion.
 
-5. Connect to the Pi with ssh. It should advertise itself with Avahi as rasberrypi.local.
+Connect to the Pi with ssh. It should advertise itself with Avahi as rasberrypi.local.
 
 default user: pi
+
 default pass: rasberry
 
+Optionally install git (takes a long time). Otherwise download the repo with wget.
 
+sudo apt install git
 
