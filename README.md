@@ -27,12 +27,12 @@ sudo apt install git
 
 Install pip.
 
-sudo apt install pip
+sudo apt install -y pip-python
 
-Clone the repo with git or download with wget.
+Clone the repo with git.
 
 Install required Python packages.
-sudo apt install libglib2.0-dev
+sudo apt install -y libglib2.0-dev
 sudo pip install -r requirements.txt
 
 Configure service
